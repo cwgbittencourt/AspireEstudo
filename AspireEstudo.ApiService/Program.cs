@@ -42,6 +42,7 @@ builder.Services.AddSingleton<IConnection>(_ =>
 
 builder.Services.AddSingleton<VehicleRedisWriter>();
 builder.Services.AddSingleton<VehicleRabbitPublisher>();
+builder.Services.AddSingleton<VehicleMySqlRepository>();
 builder.Services.AddScoped<VehicleIngestionService>();
 builder.Services.AddSingleton<VehicleInfluxService>();
 

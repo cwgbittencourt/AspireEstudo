@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using Microsoft.Extensions.Configuration;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -10,12 +11,12 @@ var influxDatabase = influxSection["Database"] ?? string.Empty;
 var influxApiKey = influxSection["ApiKey"] ?? string.Empty;
 var influxQueryStyle = influxSection["QueryStyle"] ?? "Sql";
 
-
 var rabbitSection = builder.Configuration.GetSection("RabbitMQ");
 var rabbitUsernameValue = rabbitSection["Username"] ?? throw new InvalidOperationException("RabbitMQ:Username configuration is missing.");
 var rabbitPasswordValue = rabbitSection["Password"] ?? throw new InvalidOperationException("RabbitMQ:Password configuration is missing.");
 
 var cache = builder.AddRedis("cache")
+    .WithDataVolume("redis-data")
     .WithRedisCommander(commander =>
         commander.WithEndpoint("http", endpoint =>
         {
@@ -29,6 +30,7 @@ var rabbitUsername = builder.AddParameter("messaging-username", value: rabbitUse
 var rabbitPassword = builder.AddParameter("messaging-password", value: rabbitPasswordValue, secret: true);
 
 var rabbitmq = builder.AddRabbitMQ("messaging", rabbitUsername, rabbitPassword)
+    .WithDataVolume("rabbitmq-data") 
     .WithManagementPlugin(port: 15672);
 
 var apiService = builder.AddProject<Projects.AspireEstudo_ApiService>("apiservice")
@@ -50,3 +52,5 @@ builder.AddProject<Projects.AspireEstudo_Web>("webfrontend")
     .WaitFor(apiService);
 
 builder.Build().Run();
+
+  
