@@ -20,7 +20,8 @@ public class VehicleRedisWriter
 
         var key = $"vehicle:{veiculo.Id}";
         var payload = JsonSerializer.Serialize(veiculo, SerializerOptions);
-
+        //var expire = new TimeSpan(1, 12, 10, 15);
+        //await _database.StringSetAsync(key, payload,expire).ConfigureAwait(false);
         await _database.StringSetAsync(key, payload).ConfigureAwait(false);
     }
 }
