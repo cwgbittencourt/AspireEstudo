@@ -4,7 +4,7 @@
 AspireEstudo e uma solucao de estudo baseada no .NET Aspire que demonstra ingestao, armazenamento e distribuicao de dados de veiculos. O ecossistema e composto por um servico de API minimalista que processa telemetria, um front-end Razor Components para experimentacao e um AppHost que orquestra dependencias como Redis e RabbitMQ. A telemetria persiste em InfluxDB, e tambem e replicada em MySQL e MongoDB para cenarios de consulta relacional e historico append-only.
 
 ## Estrutura da Solucao
-- `AspireEstudo.AppHost`: Projeto Aspire que provisiona os recursos (Redis, RabbitMQ, MongoDB) e injeta configuracoes compartilhadas nos microsservicos.
+- `AspireEstudo.AppHost`: Projeto Aspire que provisiona os recursos (Redis, RabbitMQ, MongoDB, Seq) e injeta configuracoes compartilhadas nos microsservicos.
 - `AspireEstudo.ApiService`: API minimalista que recebe eventos de veiculo, propaga-os para Redis, RabbitMQ, InfluxDB, MongoDB e MySQL, e expoe consultas.
 - `AspireEstudo.ServiceDefaults`: Biblioteca compartilhada com opinioes de telemetria, health checks e service discovery usadas pelos demais projetos.
 - `AspireEstudo.Web`: Aplicacao Razor Components (Server) com cache de saida Redis, pensada para consumir os dados provindos da API.
@@ -25,7 +25,8 @@ AspireEstudo e uma solucao de estudo baseada no .NET Aspire que demonstra ingest
 - **Pipeline** (`AspireEstudo.ApiService/Services/VehicleIngestionService.cs:9`): coordena a escrita nos cinco destinos (Redis, RabbitMQ, InfluxDB, MongoDB, MySQL).
 
 ### AppHost
-- Orquestra recursos Aspire: `builder.AddRedis("cache")` com Redis Commander, `builder.AddRabbitMQ("messaging")` com Management Plugin e `builder.AddMongoDB("mongo")` com DB Gate (`AspireEstudo.AppHost/Program.cs:18`).
+- Orquestra recursos Aspire: `builder.AddRedis("cache")` com Redis Commander, `builder.AddRabbitMQ("messaging")` com Management Plugin, `builder.AddMongoDB("mongo")` com DB Gate e `builder.AddSeq("seq")` com volume de dados (`AspireEstudo.AppHost/Program.cs:18`).
+- Propaga `Serilog__Seq__ServerUrl` para ApiService e Web, permitindo que Serilog encaminhe logs ao Seq provisionado.
 - Propaga secrets RabbitMQ via `AddParameter` e escreve variaveis de ambiente `Influx__*` para o ApiService.
 - Expoe endpoints HTTP externos para ApiService e Web.
 - Nao provisiona automaticamente InfluxDB nem MySQL; os endpoints devem estar acessiveis externamente e configurados via `appsettings` ou variaveis.
@@ -47,11 +48,13 @@ AspireEstudo e uma solucao de estudo baseada no .NET Aspire que demonstra ingest
 - `Mongo:Database` e `Mongo:Collection`: nome do database e da colecao onde os documentos sao inseridos. A colecao padrao e `veiculos`.
 - `infrastructure/mysql/init.sql`: script SQL opcional para provisionar o database `appdb` e a tabela `veiculo` em ambientes de desenvolvimento.
 - `Influx:Url`, `Org`, `Bucket`, `Database`, `ApiKey`, `Measurement`, `QueryStyle`: credenciais e parametros para o InfluxDB. `Measurement` tem fallback para `vehicle` no codigo.
+- `Serilog:Seq:ServerUrl`: URL base utilizada quando o ApiService roda isolado; ao executar via AppHost o valor e substituido pela variavel `Serilog__Seq__ServerUrl`.
 - Pode ser sobrescrito por variaveis em `Influx__*` / `Mongo__*` (usadas pelo AppHost) ou por `appsettings.Development.json`.
 
 ### AppHost (`AspireEstudo.AppHost/appsettings.json`)
 - Repete a secao `Influx` para carregar valores default e reenviar via variaveis de ambiente.
 - `RabbitMQ:Username` e `RabbitMQ:Password` sao tratados como parametros secretos e reutilizados ao provisionar RabbitMQ.
+- O AppHost injeta `Serilog__Seq__ServerUrl` nos servicos dependentes, apontando para o endpoint HTTP exposto pelo Seq.
 
 ### Web (`AspireEstudo.Web/appsettings.json`)
 - Mantem configuracao basica de logging. Dependencias de cache sao resolvidas via Aspire/ServiceDefaults.
@@ -61,8 +64,8 @@ AspireEstudo e uma solucao de estudo baseada no .NET Aspire que demonstra ingest
 2. **Prepare o MySQL** (opcional, para ambientes vazios): execute `mysql -u appuser -p < infrastructure/mysql/init.sql` (ajuste usuario/senha conforme necessario) para criar o schema `appdb` e a tabela `veiculo`.
 3. **Prepare o MongoDB**: crie o database/colecao conforme `Mongo:Database`/`Mongo:Collection` ou deixe que o driver crie automaticamente ao inserir o primeiro documento.
 4. **Restaure pacotes**: `dotnet restore` na raiz.
-5. **Executar via Aspire** (recomendado): `dotnet run --project AspireEstudo.AppHost`. O AppHost iniciara Redis, RabbitMQ e MongoDB, aplicara configuracoes e abrira os endpoints HTTP externos.
-6. **Executar ApiService isoladamente**: `dotnet run --project AspireEstudo.ApiService`. Certifique-se de que Redis, RabbitMQ, InfluxDB, MongoDB e MySQL estejam acessiveis nos endpoints definidos em `ConnectionStrings` e `Influx`/`Mongo`.
+5. **Executar via Aspire** (recomendado): `dotnet run --project AspireEstudo.AppHost`. O AppHost iniciara Redis, RabbitMQ, MongoDB e Seq, aplicara configuracoes e abrira os endpoints HTTP externos; a interface do Seq ficara disponivel na porta publicada (padrao http://localhost:5341).
+6. **Executar ApiService isoladamente**: `dotnet run --project AspireEstudo.ApiService`. Certifique-se de que Redis, RabbitMQ, InfluxDB, MongoDB e MySQL estejam acessiveis nos endpoints definidos em `ConnectionStrings` e `Influx`/`Mongo`; ajuste `Serilog:Seq:ServerUrl` caso utilize outra instancia de Seq.
 7. **Executar Web**: `dotnet run --project AspireEstudo.Web`. Ele consumira o mesmo Redis se iniciado via AppHost ou se `Redis__ConnectionString` estiver presente.
 
 ## APIs Disponiveis (ApiService)
@@ -103,6 +106,7 @@ Cada envio gera um novo documento, independente de `vehicleId`, preservando hist
 
 ## Observabilidade e Resiliencia
 - Health checks em desenvolvimento: `/health` (prontidao) e `/alive` (liveness).
+- Logs de aplicacao sao registrados via Serilog e enviados ao Seq; a UI padrao fica disponivel na porta configurada (por padrao http://localhost:5341).
 - Instrumentacao OpenTelemetry configurada para logs, metricas e traces; caso `OTEL_EXPORTER_OTLP_ENDPOINT` esteja definido, exporta via OTLP automaticamente.
 - `HttpClient` configurados via `ServiceDefaults` suportam service discovery e handlers de resiliencia padrao.
 
@@ -112,3 +116,17 @@ Cada envio gera um novo documento, independente de `vehicleId`, preservando hist
 - Provisionar InfluxDB via Aspire usando `builder.AddProject` ou `AddContainer` para simplificar o setup local.
 - Expandir mensagens RabbitMQ para incluir headers e integracao com consumidores dedicados.
 - Criar consultas especificas no MongoDB para relatorios historicos (por placa, faixa de datas ou comparativos de velocidade).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
