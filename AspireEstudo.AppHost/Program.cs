@@ -33,6 +33,13 @@ var rabbitmq = builder.AddRabbitMQ("messaging", rabbitUsername, rabbitPassword)
     .WithDataVolume("rabbitmq-data") 
     .WithManagementPlugin(port: 15672);
 
+var mongo = builder.AddMongoDB("mongo")
+                    .WithDbGate()
+                    .WithDataVolume();
+
+var mongodb = mongo.AddDatabase("mongodb");
+
+
 var apiService = builder.AddProject<Projects.AspireEstudo_ApiService>("apiservice")
     .WithExternalHttpEndpoints()
     .WithReference(cache)
@@ -44,7 +51,8 @@ var apiService = builder.AddProject<Projects.AspireEstudo_ApiService>("apiservic
     .WithEnvironment("Influx__Bucket", influxBucket)
     .WithEnvironment("Influx__Database", influxDatabase)
     .WithEnvironment("Influx__ApiKey", influxApiKey)
-    .WithEnvironment("Influx__QueryStyle", influxQueryStyle);
+    .WithEnvironment("Influx__QueryStyle", influxQueryStyle)
+    .WithReference(mongo).WaitFor(mongo);
 
 builder.AddProject<Projects.AspireEstudo_Web>("webfrontend")
     .WithExternalHttpEndpoints()

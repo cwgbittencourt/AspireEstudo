@@ -3,6 +3,8 @@ using AspireEstudo.ApiService.Models;
 using AspireEstudo.ApiService.RabbitMQ;
 using AspireEstudo.ApiService.Redis;
 using AspireEstudo.ApiService.Services;
+using AspireEstudo.ApiService.Mongo;
+using MongoDB.Driver;
 using RabbitMQ.Client;
 using StackExchange.Redis;
 
@@ -20,6 +22,12 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddOptions<InfluxOptions>()
     .Bind(builder.Configuration.GetSection("Influx"))
     .ValidateDataAnnotations();
+
+builder.Services.AddOptions<MongoOptions>()
+    .Bind(builder.Configuration.GetSection("Mongo"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Database), "Mongo:Database configuration is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Collection), "Mongo:Collection configuration is required.")
+    .ValidateOnStart();
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 {
@@ -40,6 +48,14 @@ builder.Services.AddSingleton<IConnection>(_ =>
     return factory.CreateConnection();
 });
 
+builder.Services.AddSingleton<IMongoClient>(_ =>
+{
+    var mongoConnectionString = builder.Configuration.GetConnectionString("mongo")
+        ?? throw new InvalidOperationException("ConnectionStrings:mongo was not provided.");
+    return new MongoClient(mongoConnectionString);
+});
+
+builder.Services.AddSingleton<VehicleMongoRepository>();
 builder.Services.AddSingleton<VehicleRedisWriter>();
 builder.Services.AddSingleton<VehicleRabbitPublisher>();
 builder.Services.AddSingleton<VehicleMySqlRepository>();
@@ -82,3 +98,7 @@ app.MapGet("/influx/veiculos", async (string? placa, int? limit, VehicleInfluxSe
 app.MapDefaultEndpoints();
 
 app.Run();
+
+
+
+
