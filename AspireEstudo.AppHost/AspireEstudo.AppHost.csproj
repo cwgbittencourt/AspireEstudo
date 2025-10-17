@@ -21,6 +21,7 @@
     <PackageReference Include="Aspire.Hosting.MongoDB" Version="9.5.1" />
     <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="9.5.1" />
     <PackageReference Include="Aspire.Hosting.Redis" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Seq" Version="9.5.1" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.MongoDB.Extensions" Version="9.8.1-beta.410" />
   </ItemGroup>
 

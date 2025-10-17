@@ -1,5 +1,6 @@
 using AspireEstudo.ApiService.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using MySqlConnector;
 
 namespace AspireEstudo.ApiService.Services;
@@ -7,11 +8,13 @@ namespace AspireEstudo.ApiService.Services;
 public class VehicleMySqlRepository
 {
     private readonly string _connectionString;
+    private readonly ILogger<VehicleMySqlRepository> _logger;
 
-    public VehicleMySqlRepository(IConfiguration configuration)
+    public VehicleMySqlRepository(IConfiguration configuration, ILogger<VehicleMySqlRepository> logger)
     {
         _connectionString = configuration.GetConnectionString("mysql")
             ?? throw new InvalidOperationException("ConnectionStrings:mysql was not provided.");
+        _logger = logger;
     }
 
     public async Task UpsertAsync(Veiculo veiculo, CancellationToken cancellationToken)
@@ -37,5 +40,8 @@ ON DUPLICATE KEY UPDATE
         command.Parameters.Add("@Velocidade", MySqlDbType.Int32).Value = veiculo.Velocidade;
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation("MySQL upserted vehicle {VehicleId} at {EventDate}", veiculo.Id, veiculo.DataEvento);
     }
 }
+

@@ -85,6 +85,8 @@ public sealed class VehicleInfluxService : IAsyncDisposable
         var record = BuildLineProtocol(veiculo);
         var writeApi = _fluxClient!.GetWriteApiAsync();
         await writeApi.WriteRecordAsync(record, WritePrecision.Ns, _options.Bucket, _options.Org, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation("InfluxDB (Flux) stored vehicle {VehicleId} at {EventDate} in measurement {Measurement}", veiculo.Id, veiculo.DataEvento, _measurement);
     }
 
     private async Task StoreSqlAsync(Veiculo veiculo, CancellationToken cancellationToken)
@@ -94,6 +96,8 @@ public sealed class VehicleInfluxService : IAsyncDisposable
         var record = BuildLineProtocol(veiculo);
         await _sqlClient!.WriteRecordAsync(record, _options.Database!, SqlWritePrecision.Ns, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
+
+        _logger.LogInformation("InfluxDB (SQL) stored vehicle {VehicleId} at {EventDate} in measurement {Measurement}", veiculo.Id, veiculo.DataEvento, _measurement);
     }
 
     private async Task<IReadOnlyList<Veiculo>> QueryFluxAsync(string? placa, int limit, CancellationToken cancellationToken)
@@ -292,5 +296,6 @@ public sealed class VehicleInfluxService : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 }
+
 
 

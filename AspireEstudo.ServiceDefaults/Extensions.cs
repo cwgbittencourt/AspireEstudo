@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Serilog;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -17,6 +19,8 @@ public static class Extensions
 {
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
+        builder.ConfigureSerilogLogging();
+
         builder.ConfigureOpenTelemetry();
 
         builder.AddDefaultHealthChecks();
@@ -66,6 +70,34 @@ public static class Extensions
             });
 
         builder.AddOpenTelemetryExporters();
+
+        return builder;
+    }
+
+    public static TBuilder ConfigureSerilogLogging<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        var loggerConfiguration = new LoggerConfiguration()
+            .ReadFrom.Configuration(builder.Configuration)
+            .Enrich.FromLogContext();
+
+        var seqUrl = builder.Configuration["Serilog:Seq:ServerUrl"] ?? builder.Configuration["SEQ__SERVERURL"];
+        if (!string.IsNullOrWhiteSpace(seqUrl))
+        {
+            var seqApiKey = builder.Configuration["Serilog:Seq:ApiKey"] ?? builder.Configuration["SEQ__APIKEY"];
+            loggerConfiguration = loggerConfiguration.WriteTo.Seq(seqUrl, apiKey: string.IsNullOrWhiteSpace(seqApiKey) ? null : seqApiKey);
+        }
+
+        if (!builder.Configuration.GetSection("Serilog:WriteTo").Exists())
+        {
+            loggerConfiguration = loggerConfiguration.WriteTo.Console();
+        }
+
+        var logger = loggerConfiguration.CreateLogger();
+
+        Log.Logger = logger;
+
+        builder.Logging.ClearProviders();
+        builder.Logging.AddSerilog(logger, dispose: true);
 
         return builder;
     }

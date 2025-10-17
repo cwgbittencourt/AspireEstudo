@@ -39,6 +39,8 @@ var mongo = builder.AddMongoDB("mongo")
 
 var mongodb = mongo.AddDatabase("mongodb");
 
+var seq = builder.AddSeq("seq")
+    .WithDataVolume("seqdb");
 
 var apiService = builder.AddProject<Projects.AspireEstudo_ApiService>("apiservice")
     .WithExternalHttpEndpoints()
@@ -52,13 +54,22 @@ var apiService = builder.AddProject<Projects.AspireEstudo_ApiService>("apiservic
     .WithEnvironment("Influx__Database", influxDatabase)
     .WithEnvironment("Influx__ApiKey", influxApiKey)
     .WithEnvironment("Influx__QueryStyle", influxQueryStyle)
-    .WithReference(mongo).WaitFor(mongo);
+    .WithReference(mongo)
+    .WaitFor(mongo)
+    .WithReference(seq)
+    .WaitFor(seq)
+    .WithEnvironment("Serilog__Seq__ServerUrl", seq.Resource.PrimaryEndpoint);
 
 builder.AddProject<Projects.AspireEstudo_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithReference(apiService)
-    .WaitFor(apiService);
+    .WaitFor(apiService)
+    .WithReference(seq)
+    .WaitFor(seq)
+    .WithEnvironment("Serilog__Seq__ServerUrl", seq.Resource.PrimaryEndpoint);
 
 builder.Build().Run();
 
   
+
+

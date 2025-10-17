@@ -53,7 +53,7 @@ public class VehicleMongoRepository
         }
     }
 
-    public Task InsertAsync(Veiculo veiculo, CancellationToken cancellationToken)
+    public async Task InsertAsync(Veiculo veiculo, CancellationToken cancellationToken)
     {
         if (veiculo is null)
         {
@@ -61,7 +61,9 @@ public class VehicleMongoRepository
         }
 
         var document = VehicleMongoDocument.FromVeiculo(veiculo);
-        return _collection.InsertOneAsync(document, cancellationToken: cancellationToken);
+        await _collection.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation("MongoDB stored vehicle {VehicleId} at {EventDate}: {Payload}", document.VehicleId, document.DataEvento, document.PayloadJson);
     }
 
     private sealed class VehicleMongoDocument
@@ -100,3 +102,4 @@ public class VehicleMongoRepository
         }
     }
 }
+
